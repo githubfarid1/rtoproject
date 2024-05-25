@@ -14,25 +14,6 @@ from itertools import groupby
 from operator import itemgetter
 from datetime import datetime, timedelta
 
-getheaders = {
-    'authority': 'www.seek.com.au',
-    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'accept-language': 'en-US,en;q=0.9,id;q=0.8',
-    'cache-control': 'max-age=0',
-    'referer': 'https://www.upwork.com/',
-    'sec-ch-ua': '"Not A(Brand";v="99", "Microsoft Edge";v="121", "Chromium";v="121"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"Windows"',
-    'sec-fetch-dest': 'document',
-    'sec-fetch-mode': 'navigate',
-    'sec-fetch-site': 'cross-site',
-    'sec-fetch-user': '?1',
-    'upgrade-insecure-requests': '1',
-    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0',
-}
-response = requests.get('https://www.seek.com.au', headers=getheaders)
-cookies_dict = response.cookies.get_dict()
-cookies = cookies_dict
 
 def decodeEmail(e):
     de = ""
@@ -45,12 +26,32 @@ def decodeEmail(e):
 
 def parse(urls):
     # urls = []
+    getheaders = {
+        'authority': 'www.seek.com.au',
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'accept-language': 'en-US,en;q=0.9,id;q=0.8',
+        'cache-control': 'max-age=0',
+        'referer': 'https://www.upwork.com/',
+        'sec-ch-ua': '"Not A(Brand";v="99", "Microsoft Edge";v="121", "Chromium";v="121"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'cross-site',
+        'sec-fetch-user': '?1',
+        'upgrade-insecure-requests': '1',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0',
+    }
+    response = requests.get('https://www.seek.com.au', headers=getheaders)
+    cookies_dict = response.cookies.get_dict()
+    cookies = cookies_dict
+
     alldata = []
     for idx, url in enumerate(urls):
         response = requests.get(url, cookies=cookies, headers=getheaders)
         html = response.content
         soup = BeautifulSoup(html, "html.parser")
-        print(idx, url)
+        print(idx+1, url)
         # breakpoint()
         jb_title = soup.find("h1", {"data-automation":"job-detail-title"}).text
         jb_subtitile = soup.find("span", {"data-automation":"advertiser-name"}).text
@@ -61,10 +62,11 @@ def parse(urls):
         jb_address = soup.find("span", {"data-automation":"job-detail-location"}).text
         jb_jobtype = soup.find('span', {'data-automation':'job-detail-work-type'}).text
         jb_jobcat = soup.find('span', {'data-automation':'job-detail-classifications'}).text
+        
 
         
         try:
-            jb_salary = elems[3].text
+            jb_salary = soup.find('span', {'data-automation':'job-detail-salary'}).text
         except:
             jb_salary = ""
         
@@ -153,7 +155,7 @@ def parse(urls):
         joblink =  url
         seekstr =  joblink.replace('https://www.seek.com.au/job/','')
         # joblink = f"https://www.seek.com.au{atl}"
-
+        # breakpoint()
         mdict = {
             "COMPANY ID VALUES": "",
             "companyName": jb_subtitile,
@@ -182,8 +184,9 @@ def parse(urls):
             "joburl": joblink,
         }
         alldata.append(mdict)
+    return alldata
 
-def savedata(alldata):
+def savedata(alldata, filename):
     finaldata = []
     for dl in alldata:
         if ', ' in dl['Email']:
@@ -229,19 +232,25 @@ def savedata(alldata):
 
 def main():
     parser = argparse.ArgumentParser(description="SEEK Scraper")
-    parser.add_argument('-start', '--start', type=str,help="Start number")
-    parser.add_argument('-end', '--end', type=str,help="End number")
+    parser.add_argument('-s', '--start', type=str,help="Start number")
+    parser.add_argument('-e', '--end', type=str,help="End number")
+    parser.add_argument('-o', '--output', type=str,help="File output")
 
     args = parser.parse_args()
+    if args.output[-5:] != '.xlsx':
+        print('use: python seekscraper.py -s <start_index> -e <end_index> -o <filename>')
+        exit()
+
     if args.start == None or args.end == None:
-        print('use: python seekscraper.py -start <start_index> -end <end_index>')
+        print('use: python seekscraper.py -s <start_index> -e <end_index> -o <filename>')
         exit()
     with open("fileresult/urls.json", "r") as jsdata:
         ids = json.load(jsdata)
     urls = ["https://www.seek.com.au/job/"+id for idx, id in enumerate(ids) if idx >= int(args.start)-1 and idx < int(args.end)]
 
     alldata = parse(urls)
-    print(alldata)
+    # print(alldata)
+
     
 if __name__ == '__main__':
     main()
