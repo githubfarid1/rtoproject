@@ -1,3 +1,5 @@
+import os
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import requests
 import json
 from bs4 import BeautifulSoup
@@ -7,7 +9,6 @@ from json import JSONDecoder
 from json import JSONEncoder
 from openpyxl import Workbook, load_workbook
 import argparse
-import os
 
 '''
 json.loads : untuk mengubah STRING JSON menjadi OBJECT DICTIONARY
