@@ -14,7 +14,7 @@ from itertools import groupby
 from operator import itemgetter
 from datetime import datetime, timedelta
 import setting as s
-
+import sys
 
 def decodeEmail(e):
     de = ""
@@ -48,6 +48,7 @@ def parse(urls):
     cookies = cookies_dict
 
     alldata = []
+    failed = 0
     for idx, url in enumerate(urls):
         response = requests.get(url, cookies=cookies, headers=getheaders)
         html = response.content
@@ -57,8 +58,13 @@ def parse(urls):
         try:
             jb_title = soup.find("h1", {"data-automation":"job-detail-title"}).text
         except:
+            failed += 1
             print("Failed")
-            continue
+            if failed <=10:
+                continue
+            else:
+                print("Reboot the system and run the script again")
+                sys.exit()
         jb_subtitile = soup.find("span", {"data-automation":"advertiser-name"}).text
         # elems =  soup.find_all("span", class_="y735df0 _1iz8dgs4y _1iz8dgsr")
         # breakpoint()
