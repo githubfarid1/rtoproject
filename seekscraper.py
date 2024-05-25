@@ -57,6 +57,7 @@ def parse(urls):
         try:
             jb_title = soup.find("h1", {"data-automation":"job-detail-title"}).text
         except:
+            print("Failed")
             continue
         jb_subtitile = soup.find("span", {"data-automation":"advertiser-name"}).text
         # elems =  soup.find_all("span", class_="y735df0 _1iz8dgs4y _1iz8dgsr")
