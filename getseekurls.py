@@ -1,3 +1,5 @@
+import os
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
