@@ -5,13 +5,8 @@ import json
 from bs4 import BeautifulSoup
 # import pandas as pd
 from datetime import datetime
-from json import JSONDecoder
-from json import JSONEncoder
-from openpyxl import Workbook, load_workbook
+# from openpyxl import Workbook, load_workbook
 import argparse
-import pandas as pd
-from itertools import groupby
-from operator import itemgetter
 from datetime import datetime, timedelta
 import setting as s
 import sys
@@ -198,49 +193,6 @@ def parse(urls):
         alldata.append(mdict)
     return alldata
 
-def savedata(alldata, filename):
-    finaldata = []
-    for dl in alldata:
-        if ', ' in dl['Email']:
-            emails = dl['Email'].split(", ")
-            for email in emails:
-                cpl = dl.copy()
-                cpl['Email'] = email
-                finaldata.append(cpl)
-            continue
-        finaldata.append(dl)
-    # breakpoint()
-    emailgroup = []
-    sortedlist = sorted(finaldata, key=itemgetter('Email'))
-    for key, value in groupby(sortedlist, key=itemgetter('Email')):
-        if key == '':
-            continue
-        # print(key)
-        sortedvalue = sorted(value, key=itemgetter('JobAdPosted'), reverse=True)
-        for k in sortedvalue:
-            mdict = {
-                "key": key,
-                "data": k
-            }
-            emailgroup.append(mdict)
-            break
-            # print(k)
-    # breakpoint()
-    for fi, data in enumerate(finaldata):
-        if data['Email'] == '':
-            continue
-        # breakpoint()
-        emailsearch = data['Email']
-        femail = [item for item in emailgroup if item["key"] == emailsearch]
-        # breakpoint()
-        finaldata[fi]['LatestJobAdTitle'] = femail[0]['data']['JobAdTitle']
-        finaldata[fi]['Latest jobType'] = femail[0]['data']['jobType']
-        finaldata[fi]['Latest jobCompany'] = femail[0]['data']['jobCompany']
-        finaldata[fi]['Latest Job Ad Posted Date'] = femail[0]['data']['JobAdPosted']
-
-    df = pd.DataFrame(finaldata)
-    # df.to_excel("seekjob-with-filter.xlsx", index=False)
-    df.to_excel(s.RESFOLDER + os.path.sep + filename, index=False)
 
 
 def main():
