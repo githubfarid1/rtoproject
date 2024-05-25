@@ -9,6 +9,7 @@ from json import JSONDecoder
 from json import JSONEncoder
 from openpyxl import Workbook, load_workbook
 import argparse
+import setting as s
 
 '''
 json.loads : untuk mengubah STRING JSON menjadi OBJECT DICTIONARY
@@ -711,7 +712,7 @@ def parse(fileoutput):
         sheet.cell(row=idx+2, column=90).value = '=IF(CI{0}="","",IF(CK{0}<>"",CONCATENATE(CI{0}," ",CJ{0}),CI{0}))'.format(idx+2)
         sheet.cell(row=idx+2, column=91).value = '=IF(CJ{0}="","",IF(CK{0}<>"",CK{0},CJ{0}))'.format(idx+2)
     # breakpoint()
-    wb.save("fileresult" + os.path.sep + fileoutput)
+    wb.save(s.RESFOLDER + os.path.sep + fileoutput)
 
 
 def main():

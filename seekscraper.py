@@ -13,6 +13,7 @@ import pandas as pd
 from itertools import groupby
 from operator import itemgetter
 from datetime import datetime, timedelta
+import setting as s
 
 
 def decodeEmail(e):
@@ -231,29 +232,39 @@ def savedata(alldata, filename):
 
     df = pd.DataFrame(finaldata)
     # df.to_excel("seekjob-with-filter.xlsx", index=False)
-    df.to_excel("fileresult" + os.path.sep + filename, index=False)
+    df.to_excel(s.RESFOLDER + os.path.sep + filename, index=False)
 
 
 def main():
     parser = argparse.ArgumentParser(description="SEEK Scraper")
     parser.add_argument('-s', '--start', type=str,help="Start number")
     parser.add_argument('-e', '--end', type=str,help="End number")
-    parser.add_argument('-o', '--output', type=str,help="File output")
+    # parser.add_argument('-o', '--output', type=str,help="File output")
 
     args = parser.parse_args()
-    if args.output[-5:] != '.xlsx':
-        print('use: python seekscraper.py -s <start_index> -e <end_index> -o <filename>')
-        exit()
+    # if args.output[-5:] != '.xlsx':
+    #     print('use: python seekscraper.py -s <start_index> -e <end_index> -o <filename>')
+    #     exit()
 
     if args.start == None or args.end == None:
         print('use: python seekscraper.py -s <start_index> -e <end_index> -o <filename>')
         exit()
-    with open("fileresult/urls.json", "r") as jsdata:
+    with open(s.RESFOLDER + os.path.sep + "urls.json", "r") as jsdata:
         ids = json.load(jsdata)
+    # breakpoint()
     urls = ["https://www.seek.com.au/job/"+id for idx, id in enumerate(ids) if idx >= int(args.start)-1 and idx < int(args.end)]
 
     alldata = parse(urls)
-    savedata(alldata=alldata, filename=args.output)
+    files = [f for f in os.listdir(s.RESFOLDER) if os.path.isfile(os.path.join(s.RESFOLDER, f))]
+    ke = 1
+    for file in files:
+        if "jsondata" in file:
+            ke += 1
+
+    with open(s.RESFOLDER + os.path.sep + "jsondata{}.json".format(ke)  , "w") as f:
+        json.dump(alldata, f)
+
+    # savedata(alldata=alldata, filename=args.output)
     # print(alldata)
 
     
