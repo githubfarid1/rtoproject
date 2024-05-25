@@ -35,6 +35,7 @@ alldata = []
 page = 0
 urls = []
 maxcount = 550
+print("Get URLs started", end="...")
 for cl in subclass:
     params = {
         'subclassification': cl, 
@@ -54,6 +55,7 @@ for cl in subclass:
     worktype = [242,243,244,245]
     if jobcount > maxcount:
         for wt in worktype:
+            print(".", end="", flush=True)
             params = {
                 'subclassification': cl,
                 'worktype': wt, 
@@ -109,11 +111,13 @@ for cl in subclass:
                                 jobcount = int(soup.find('span', {"data-automation":"totalJobsCount"}).text)
                         except:
                             jobcount = 0
+                        
+                        print(".", end="", flush=True)
 
-                        if jobcount > maxcount:
-                            print(jobcount, 'out')
+                        # if jobcount > maxcount: ##
+                            # print(jobcount, 'out') ##
                         # else:
-                        print(jobcount, 'subclassification', cl, 'worktype', wt, "salary", sal, "daterange", daterange)
+                        # print(jobcount, 'subclassification', cl, 'worktype', wt, "salary", sal, "daterange", daterange) ##
                         # breakpoint()
                         page = 0
                         while True:
@@ -128,11 +132,14 @@ for cl in subclass:
                             response = requests.get('https://www.seek.com.au/jobs-in-education-training', params=params, cookies=cookies, headers=getheaders)
                             html = response.content
                             soup = BeautifulSoup(html, "html.parser")
-            
-                            print("page", page)
+                            print(".", end="", flush=True)
 
+                            # print("page", page) ##
+                            
                             trs = soup.find_all("article", class_='y735df0')
-                            print(len(trs))
+                            # print(len(trs)) ##
+                            print(".", end="", flush=True)
+
                             if len(trs) == 0:
                                 break    
                             # dlist = []
@@ -147,7 +154,7 @@ for cl in subclass:
 
 
                     else:
-                        print(jobcount, 'subclassification', cl, 'worktype', wt, "salary", sal)
+                        # print(jobcount, 'subclassification', cl, 'worktype', wt, "salary", sal) ##
                         # breakpoint()
                         page = 0
                         while True:
@@ -162,10 +169,10 @@ for cl in subclass:
                             html = response.content
                             soup = BeautifulSoup(html, "html.parser")
              
-                            print("page", page)
-
+                            # print("page", page) ##
+                            print(".", end="", flush=True)
                             trs = soup.find_all("article", class_='y735df0')
-                            print(len(trs))
+                            # print(len(trs)) ##
                             if len(trs) == 0:
                                 break    
                             # dlist = []
@@ -178,7 +185,7 @@ for cl in subclass:
 
 
             else:
-                print(jobcount, 'subclassification', cl, 'worktype', wt)
+                # print(jobcount, 'subclassification', cl, 'worktype', wt) ##
                 page = 0
                 while True:
                     page += 1
@@ -191,8 +198,8 @@ for cl in subclass:
                     html = response.content
                     soup = BeautifulSoup(html, "html.parser")
 
-                    print("page", page)
-
+                    # print("page", page) ##
+                    print(".", end="", flush=True)
                     trs = soup.find_all("article", class_='y735df0')
                     if len(trs) == 0:
                         break    
@@ -205,7 +212,7 @@ for cl in subclass:
                         urls.append(joblink)
 
     else:
-        print(jobcount, 'subclassification', cl)
+        # print(jobcount, 'subclassification', cl) ##
         page = 0
         while True:
             page += 1
@@ -214,7 +221,9 @@ for cl in subclass:
                 'subclassification': cl, 
             }
             response = requests.get('https://www.seek.com.au/jobs-in-education-training', params=params, cookies=cookies, headers=getheaders)
-            print("page", page)
+            # print("page", page) ##
+            print(".", end="", flush=True)
+
             html = response.content
             soup = BeautifulSoup(html, "html.parser")
 
@@ -230,8 +239,8 @@ for cl in subclass:
                 urls.append(joblink)
         
 urlsset = set(urls)
-urls = list(urlsset)
-print("Found urls:", len(urls))
+urlsunique = list(urlsset)
+print("Found urls:", len(urls), len(urlsunique))
 
 with open(s.RESFOLDER + os.path.sep + "urls.json", "w") as f:
     json.dump(urls, f)
