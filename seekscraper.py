@@ -53,7 +53,10 @@ def parse(urls):
         soup = BeautifulSoup(html, "html.parser")
         print(idx+1, url)
         # breakpoint()
-        jb_title = soup.find("h1", {"data-automation":"job-detail-title"}).text
+        try:
+            jb_title = soup.find("h1", {"data-automation":"job-detail-title"}).text
+        except:
+            continue
         jb_subtitile = soup.find("span", {"data-automation":"advertiser-name"}).text
         # elems =  soup.find_all("span", class_="y735df0 _1iz8dgs4y _1iz8dgsr")
         # breakpoint()
