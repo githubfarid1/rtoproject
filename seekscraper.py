@@ -57,6 +57,7 @@ def parse(urls):
         # breakpoint()
         try:
             jb_title = soup.find("h1", {"data-automation":"job-detail-title"}).text
+            failed = 0
         except:
             failed += 1
             print("Failed")
