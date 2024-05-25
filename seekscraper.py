@@ -203,7 +203,7 @@ def savedata(alldata, filename):
     for key, value in groupby(sortedlist, key=itemgetter('Email')):
         if key == '':
             continue
-        print(key)
+        # print(key)
         sortedvalue = sorted(value, key=itemgetter('JobAdPosted'), reverse=True)
         for k in sortedvalue:
             mdict = {
@@ -227,7 +227,8 @@ def savedata(alldata, filename):
         finaldata[fi]['Latest Job Ad Posted Date'] = femail[0]['data']['JobAdPosted']
 
     df = pd.DataFrame(finaldata)
-    df.to_excel("seekjob-with-filter.xlsx", index=False)
+    # df.to_excel("seekjob-with-filter.xlsx", index=False)
+    df.to_excel("fileresult" + os.path.sep + filename, index=False)
 
 
 def main():
@@ -249,6 +250,7 @@ def main():
     urls = ["https://www.seek.com.au/job/"+id for idx, id in enumerate(ids) if idx >= int(args.start)-1 and idx < int(args.end)]
 
     alldata = parse(urls)
+    savedata(alldata=alldata, filename=args.output)
     # print(alldata)
 
     
