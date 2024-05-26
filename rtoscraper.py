@@ -719,6 +719,10 @@ def main():
     parser = argparse.ArgumentParser(description="RTO Scraper")
     parser.add_argument('-o', '--output', type=str,help="File Input")
     args = parser.parse_args()
+    if not args.output:
+        print('use: python rtoscraper.py -o <filename>')
+        exit()
+
     if args.output[-5:] != '.xlsx':
         print('File output have to XLSX file')
         exit()

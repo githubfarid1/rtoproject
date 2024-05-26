@@ -199,13 +199,8 @@ def main():
     parser = argparse.ArgumentParser(description="SEEK Scraper")
     parser.add_argument('-s', '--start', type=str,help="Start number")
     parser.add_argument('-e', '--end', type=str,help="End number")
-    # parser.add_argument('-o', '--output', type=str,help="File output")
 
     args = parser.parse_args()
-    # if args.output[-5:] != '.xlsx':
-    #     print('use: python seekscraper.py -s <start_index> -e <end_index> -o <filename>')
-    #     exit()
-
     if args.start == None or args.end == None:
         print('use: python seekscraper.py -s <start_index> -e <end_index> -o <filename>')
         exit()
@@ -224,8 +219,6 @@ def main():
     with open(s.RESFOLDER + os.path.sep + "jsondata{}.json".format(ke)  , "w") as f:
         json.dump(alldata, f)
 
-    # savedata(alldata=alldata, filename=args.output)
-    # print(alldata)
 
     
 if __name__ == '__main__':
