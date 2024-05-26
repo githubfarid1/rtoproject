@@ -202,7 +202,7 @@ def main():
 
     args = parser.parse_args()
     if args.start == None or args.end == None:
-        print('use: python seekscraper.py -s <start_index> -e <end_index> -o <filename>')
+        print('use: python seekscraper.py -s <start_index> -e <end_index>')
         exit()
     with open(s.RESFOLDER + os.path.sep + "urls.json", "r") as jsdata:
         ids = json.load(jsdata)
