@@ -52,7 +52,7 @@ for cl in subclass:
             jobcount = int(soup.find('span', {"data-automation":"totalJobsCount"}).text)
     except:
         jobcount = 0
-
+    # breakpoint()
     worktype = [242,243,244,245]
     if jobcount > maxcount:
         for wt in worktype:
@@ -63,6 +63,7 @@ for cl in subclass:
             }
             response = requests.get('https://www.seek.com.au/jobs-in-education-training', params=params, cookies=cookies, headers=getheaders)
             html = response.content
+            # breakpoint()
             soup = BeautifulSoup(html, "html.parser")
             try:
                 if "," in soup.find('span', {"data-automation":"totalJobsCount"}).text:
@@ -72,6 +73,8 @@ for cl in subclass:
             except:
                 jobcount = 0
             salaryrange = ['0-30000', '30000-40000', '40000-50000', '50000-60000', '60000-70000', '70000-80000', '80000-100000', '100000-120000', '120000-150000', '150000-200000', '200000-250000', '250000-350000', '350000-']
+            # salaryrange = ['0-', '30000-', '40000-', '50000-', '60000-', '70000-', '80000-', '100000-', '120000-', '150000-', '200000-', '250000-', '350000-']
+
             if jobcount > maxcount:
                 for sal in salaryrange:
                     params = {
@@ -112,7 +115,7 @@ for cl in subclass:
                                 jobcount = int(soup.find('span', {"data-automation":"totalJobsCount"}).text)
                         except:
                             jobcount = 0
-                        
+                        # breakpoint()
                         print(".", end="", flush=True)
 
                         # if jobcount > maxcount: ##
@@ -137,8 +140,9 @@ for cl in subclass:
 
                             # print("page", page) ##
                             
-                            trs = soup.find_all("article", class_='y735df0')
+                            trs = soup.find_all("article", class_='_4603vi0')
                             # print(len(trs)) ##
+                            # breakpoint()
                             print(".", end="", flush=True)
 
                             if len(trs) == 0:
@@ -172,7 +176,7 @@ for cl in subclass:
              
                             # print("page", page) ##
                             print(".", end="", flush=True)
-                            trs = soup.find_all("article", class_='y735df0')
+                            trs = soup.find_all("article", class_='_4603vi0')
                             # print(len(trs)) ##
                             if len(trs) == 0:
                                 break    
@@ -201,7 +205,7 @@ for cl in subclass:
 
                     # print("page", page) ##
                     print(".", end="", flush=True)
-                    trs = soup.find_all("article", class_='y735df0')
+                    trs = soup.find_all("article", class_='_4603vi0')
                     if len(trs) == 0:
                         break    
                     # dlist = []
@@ -228,7 +232,7 @@ for cl in subclass:
             html = response.content
             soup = BeautifulSoup(html, "html.parser")
 
-            trs = soup.find_all("article", class_='y735df0')
+            trs = soup.find_all("article", class_='_4603vi0')
             if len(trs) == 0:
                 break    
             # dlist = []

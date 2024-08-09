@@ -140,8 +140,8 @@ def parse(fileoutput):
     dlist = []
     # row = 1
     for idx, data in enumerate(orgidlist):
-        # if idx >= 2:
-        #     break
+        if idx >= 50:
+            break
 
         orgId = data[0]
         orgcode = data[1]
