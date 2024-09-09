@@ -1,6 +1,8 @@
 import os
-# os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import requests
+from requests.exceptions import SSLError, ConnectionError
+from http.client import RemoteDisconnected
 import json
 from bs4 import BeautifulSoup
 # import pandas as pd
@@ -10,21 +12,37 @@ from json import JSONEncoder
 from openpyxl import Workbook, load_workbook
 import argparse
 import setting as s
-from requests import Session
-from requests.exceptions import ProxyError
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
+import time
+import random
+
+
+# Lock for thread-safe workbook access
+save_lock = Lock()
+
+# Define a list of user agents to randomize requests and avoid blocking
+user_agents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:88.0) Gecko/20100101 Firefox/88.0',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:90.0) Gecko/20100101 Firefox/90.0',
+    # Add more user agents as needed
+]
+
 '''
 json.loads : untuk mengubah STRING JSON menjadi OBJECT DICTIONARY
 
 json.dumps: mengubah OBJECT DICTIONARY menjadi STRING JSON
 '''
-
 class DateTimeDecoder(JSONDecoder):
 
     def __init__(self, *args, **kargs):
         JSONDecoder.__init__(self, object_hook=self.dict_to_object,
                              *args, **kargs)
     
-    def dict_to_object(self, d): 
+    def dict_to_object(self, d):
         if '__type__' not in d:
             return d
 
@@ -54,7 +72,7 @@ class DateTimeEncoder(JSONEncoder):
                 'minute' : obj.minute,
                 'second' : obj.second,
                 'microsecond' : obj.microsecond,
-            }   
+            }
         else:
             return JSONEncoder.default(self, obj)
 
@@ -93,7 +111,7 @@ headers = {
 }
 
 def parse(fileoutput):
-    # breakpoint()
+
     orgidlist = []
     for page in range(1, 100):
         params = {
@@ -103,7 +121,7 @@ def parse(fileoutput):
             'includeNotRtos': 'False',
             'orgSearchByNameSubmit': 'Search',
             'JavaScriptEnabled': 'true',
-        }    
+        }
         data = {
             'page': page,
             'size': '1000',
@@ -111,9 +129,7 @@ def parse(fileoutput):
             'groupBy': '',
             'filter': '',
         }
-        # breakpoint()
-        session = Session()
-        res1 = session.post(
+        res1 = requests.post(
             'https://training.gov.au/Search/AjaxGetOrganisations',
             params=params,
             cookies=cookies,
@@ -134,21 +150,52 @@ def parse(fileoutput):
     wb = Workbook()
     wb.create_sheet("Sheet1")
     sheet = wb.worksheets[0]
-    headersx = ("Lead Source (do not overwrite)",	"RTO Code",	"RTO training.gov.au URL",	"RTO Legal Name",	"RTO Business Name/s",	"RTO Status",	"RTO ABN",	"RTO ACN",	"RTO Type",	"RTO Website",	"RTO Regulator",	"RTO Initial Registration Date",	"RTO Current Registration Start Date",	"RTO Current Registration End Date",	"RTO Legal Authority",	"RTO Excerciser",	"RTO Scope - Qualification Code/s",	"RTO Scope - Qualification Title/s",	"RTO Scope - Unit Code/s",	"RTO Scope - Unit Title/s",	"RTO Scope - Skillset Code/s",	"RTO Scope - Skillset - Title/s",	"RTO Scope - Accredited Courses Code/s",	"RTO Scope - Accredited Courses Title/s",	"RTO Head Office Physical Address 1",	"RTO Head Office Physical Address 2",	"RTO Head Office Postal Address 1",	"RTO Head Office Postal Address 2",	"RTO Decision Type",	"RTO Decision Effective Date",	"RTO Decision End Date",	"RTO Decision Status",	"RTO Decision Review Status",	"Contact Full Name",	"Job Title",	"Contact Email",	"HubSpot Contact ID",	"Company Name",	"Contact Email + Company Name",	"RTO Website CLONE",	"Email without AT",	"RTO Website SIMPLIFIED",	"Company Name CLONE",	"Contact Email",	"Company ID",	"Contact Email | Company ID",	"Phone RAW",	"Phone LEN#",	"PHONE CONCAT (fx)",	"PHONE CONCAT LEN#",	"Phone",	"Fax RAW",	"Fax LEN#",	"Fax CONCAT (fx)",	"Fax CONCAT LEN#",	"Fax",	"Mobile RAW",	"MobileCleanup",	"Mobile LEN#",	"Mobile CONCAT (fx)",	"Mobile CONCAT LEN#",	"Mobile",	"First Name",	"Last Name",	"contactAddress RAW",	"contactAddress F/R to %",	"contactAddress L1RAW",	"contactAddress L2RAW",	"contactAddress L3RAW",	"Contact Address 1",	"postCode",	"state",	"city",	"billingZip",	"billingstate",	"billingcity",	"billingStreet",	"RTO Head Office Physical Address RAW",	"RTO Head Office Physical Address F/R to %",	"RTO Head Office Physical Address L1RAW",	"RTO Head Office Physical Address L2RAW",	"RTO Head Office Physical Address L3RAW",	"RTO Head Office Physical Address 1",	"RTO Head Office Physical Address 2",	"RTO Head Office Postal Address RAW",	"RTO Head Office Postal Address F/R to %",	"RTO Head Office Postal Address L1RAW",	"RTO Head Office Postal Address L2RAW",	"RTO Head Office Postal Address L3RAW",	"RTO Head Office Postal Address 1",	"RTO Head Office Postal Address 2")
+    headersx = ("Lead Source (do not overwrite)",    "RTO Code",    "RTO training.gov.au URL",    "RTO Legal Name",    "RTO Business Name/s",    "RTO Status",    "RTO ABN",    "RTO ACN",    "RTO Type",    "RTO Website",    "RTO Regulator",    "RTO Initial Registration Date",    "RTO Current Registration Start Date",    "RTO Current Registration End Date",    "RTO Legal Authority",    "RTO Excerciser",    "RTO Scope - Qualification Code/s",    "RTO Scope - Qualification Title/s",    "RTO Scope - Unit Code/s",    "RTO Scope - Unit Title/s",    "RTO Scope - Skillset Code/s",    "RTO Scope - Skillset - Title/s",    "RTO Scope - Accredited Courses Code/s",    "RTO Scope - Accredited Courses Title/s",    "RTO Head Office Physical Address 1",    "RTO Head Office Physical Address 2",    "RTO Head Office Postal Address 1",    "RTO Head Office Postal Address 2",    "RTO Decision Type",    "RTO Decision Effective Date",    "RTO Decision End Date",    "RTO Decision Status",    "RTO Decision Review Status",    "Contact Full Name",    "Job Title",    "Contact Email",    "HubSpot Contact ID",    "Company Name",    "Contact Email + Company Name",    "RTO Website CLONE",    "Email without AT",    "RTO Website SIMPLIFIED",    "Company Name CLONE",    "Contact Email",    "Company ID",    "Contact Email | Company ID",    "Phone RAW",    "Phone LEN#",    "PHONE CONCAT (fx)",    "PHONE CONCAT LEN#",    "Phone",    "Fax RAW",    "Fax LEN#",    "Fax CONCAT (fx)",    "Fax CONCAT LEN#",    "Fax",    "Mobile RAW",    "MobileCleanup",    "Mobile LEN#",    "Mobile CONCAT (fx)",    "Mobile CONCAT LEN#",    "Mobile",    "First Name",    "Last Name",    "contactAddress RAW",    "contactAddress F/R to %",    "contactAddress L1RAW",    "contactAddress L2RAW",    "contactAddress L3RAW",    "Contact Address 1",    "postCode",    "state",    "city",    "billingZip",    "billingstate",    "billingcity",    "billingStreet",    "RTO Head Office Physical Address RAW",    "RTO Head Office Physical Address F/R to %",    "RTO Head Office Physical Address L1RAW",    "RTO Head Office Physical Address L2RAW",    "RTO Head Office Physical Address L3RAW",    "RTO Head Office Physical Address 1",    "RTO Head Office Physical Address 2",    "RTO Head Office Postal Address RAW",    "RTO Head Office Postal Address F/R to %",    "RTO Head Office Postal Address L1RAW",    "RTO Head Office Postal Address L2RAW",    "RTO Head Office Postal Address L3RAW",    "RTO Head Office Postal Address 1",    "RTO Head Office Postal Address 2")
+ 
     for idx, value in enumerate(headersx):
         sheet.cell(row=1, column=idx+1).value = value
 
+    # wb.save("rtox.xlsx")
+    # exit()
     # orgidlist = [('873564c5-62ae-43b4-9134-3b82372c2465', '6729')]
     dlist = []
-    orgidlist = [('7cda8582-dc37-4772-90f4-a342c7e4dda6', '40898')]
-    for idx, data in enumerate(orgidlist):
-        try:
-            orgId = data[0]
-            orgcode = data[1]
-            print(idx, orgcode)
-            res2 = session.get(f"https://training.gov.au/Organisation/Details/{orgcode}", cookies=cookies, headers=headers,)
+    # row = 1
+    def fetch_rto_details(data, idx, sheet):
+        orgId = data[0]
+        orgcode = data[1]
+        
 
+        def make_request(url, method='GET', params=None, data=None, retries=3, timeout=10):
+            for i in range(retries):
+                try:
+                    headers['user-agent'] = random.choice(user_agents)
+                    if method == 'GET':
+                        response = requests.get(url, cookies=cookies, headers=headers, params=params, timeout=timeout)
+                    else:
+                        response = requests.post(url, cookies=cookies, headers=headers, params=params, data=data, timeout=timeout)
+                    response.raise_for_status()
+                    return response
+                except (SSLError, ConnectionError, RemoteDisconnected, requests.Timeout) as e:
+                    print(f"Error with request to {url}: {e}")
+                    if i < retries - 1:
+                        wait_time = 1 + 2 ** i  # Slight increase in wait time
+                        print(f"Retrying in {wait_time} seconds...")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"Failed after {retries} attempts.")
+                        raise e
+
+
+        try:
+            time.sleep(random.uniform(0.5, 2))
+
+            # Randomly select a user agent before making a request
+            headers['user-agent'] = random.choice(user_agents)
+
+            # Example of making a request using the retry logic:
+            res2 = make_request(f"https://training.gov.au/Organisation/Details/{orgcode}")
             html = res2.content
+
             soup = BeautifulSoup(html, "html.parser")
             sum = soup.find("div", {"id":"rtoDetails-1"})
             fieldsets = sum.find("div", class_="fieldset").find_all("div",class_='display-row')
@@ -216,20 +263,19 @@ def parse(fileoutput):
                 '_': '1709176047722',
             }
 
-            res3 = session.get(
+            res3 = requests.get(
                 'https://training.gov.au/Organisation/AjaxDetailsLoadRegistration/{}'.format(orgId),
                 params=params,
                 cookies=cookies,
                 headers=headers,
-            
-            )    
+            )
             html = res3.content
             soup = BeautifulSoup(html, "html.parser")
             try:
                 fieldsets = soup.find("div", class_="fieldset").find_all("div",class_='display-row')
             # breakpoint()
             except:
-                continue
+                pass
             regulator = ''
             regdate = ''
             regstart = ''
@@ -285,7 +331,7 @@ def parse(fileoutput):
                 cdate = datetime.strptime(regstart ,'%d/%b/%Y')
             except:
                 cdate = ""
-            try:    
+            try:
                 regstart = cdate.strftime('%d/%m/%Y')
             except:
                 regstart = ""
@@ -306,13 +352,11 @@ def parse(fileoutput):
                 'filter': 'IsImplicit~eq~false',
             }
 
-            response = session.post(
-                'https://training.gov.au/Organisation/AjaxScopeUnit/{}'.format(orgId),
-                params=params,
-                cookies=cookies,
-                headers=headers,
-                data=payload,
+            response = make_request(
+                f'https://training.gov.au/Organisation/AjaxScopeQualification/{orgId}',
+                method='POST', data=payload, params=params
             )
+
             # breakpoint()
             unit_codestr = ''
             unit_titlestr = ''
@@ -320,10 +364,10 @@ def parse(fileoutput):
                 cleantxt = response.text.replace(':new Date(', ':"').replace('0),"','0","')
                 datascope = json.loads(cleantxt)
                 if len(datascope['data']) > 0:
-                    unit_codestr = ", ".join([datascope['Code'] for datascope in datascope['data']])        
+                    unit_codestr = ", ".join([datascope['Code'] for datascope in datascope['data']])
                     unit_titlestr =  ", ".join([datascope['Title'] for datascope in datascope['data']])
 
-            response = session.post(
+            response = requests.post(
                 'https://training.gov.au/Organisation/AjaxScopeQualification/{}'.format(orgId),
                 params=params,
                 cookies=cookies,
@@ -339,7 +383,7 @@ def parse(fileoutput):
                     qual_codestr = ", ".join([datascope['Code'] for datascope in datascope['data']])
                     qual_titlestr =  ", ".join([datascope['Title'] for datascope in datascope['data']])
 
-            response = session.post(
+            response = requests.post(
                 'https://training.gov.au/Organisation/AjaxScopeSkillSet/{}'.format(orgId),
                 params=params,
                 cookies=cookies,
@@ -355,7 +399,7 @@ def parse(fileoutput):
                     skill_codestr = ", ".join([datascope['Code'] for datascope in datascope['data']])
                     skill_titlestr =  ", ".join([datascope['Title'] for datascope in datascope['data']])
 
-            response = session.post(
+            response = requests.post(
                 'https://training.gov.au/Organisation/AjaxScopeAccreditedCourse/{}'.format(orgId),
                 params=params,
                 cookies=cookies,
@@ -371,12 +415,12 @@ def parse(fileoutput):
                     course_codestr = ", ".join([datascope['Code'] for datascope in datascope['data']])
                     course_titlestr =  ", ".join([datascope['Title'] for datascope in datascope['data']])
 
-            response = session.get(
+            response = requests.get(
                 'https://training.gov.au/Organisation/AjaxDetailsLoadAddresses/{}'.format(orgId),
                 params=params,
                 cookies=cookies,
                 headers=headers,
-            )    
+            )
             html = response.content
             soup = BeautifulSoup(html, "html.parser")
             # breakpoint()
@@ -456,12 +500,12 @@ def parse(fileoutput):
                             pass
 
             # breakpoint()
-            response = session.get(
+            response = requests.get(
                 'https://training.gov.au/Organisation/AjaxDetailsLoadRegulatoryDecisions/{}'.format(orgId),
                 params=params,
                 cookies=cookies,
                 headers=headers,
-            )    
+            )
             html = response.content
             soup = BeautifulSoup(html, "html.parser")
             trs = []
@@ -488,7 +532,7 @@ def parse(fileoutput):
                     pass
                 # breakpoint()
 
-            contact_name = ""	
+            contact_name = ""
             contact_job = ""
             contact_email = ""
             contact_org = ""
@@ -498,35 +542,35 @@ def parse(fileoutput):
             contact_org = ""
             contact_email = ""
             contact_phone = ""
-            contact_phone_w_ccode = ""	
+            contact_phone_w_ccode = ""
             contact_fax_w_ccode = ""
-            contact_mobile = ""	
-            contact_mobile_clean = ""	
-            contact_mobile_w_ccode = ""	
+            contact_mobile = ""
+            contact_mobile_clean = ""
+            contact_mobile_w_ccode = ""
             firstname = ""
             lastname = ""
             addressraw = ""
-            addressraw_fr = ""	
+            addressraw_fr = ""
             addressraw1r = ""
             addressraw2r = ""
             addressraw3r = ""
             address1 = ""
             postalcode = ""
             state = ""
-            city = ""	
+            city = ""
             
-            response = session.get(
+            response = requests.get(
                 'https://training.gov.au/Organisation/AjaxDetailsLoadContacts/{}'.format(orgId),
                 params=params,
                 cookies=cookies,
                 headers=headers,
-            )    
+            )
             html = response.content
             soup = BeautifulSoup(html, "html.parser")
             trs = soup.find_all("div", class_="outer")[0].find_all("div", class_="display-row")
             for tr in trs:
-                breakpoint()
                 label = tr.find("div", class_="display-label").text
+                # print(label)
                 contact_fax = ""
                 contact_phone_w_ccode = '=IF(AU{0}="","",IF(AV{0}=6,AU{0},IF(AV{0}=8,CONCATENATE(IFS($BW{0}="NSW","+612",$BW{0}="ACT","+612",$BW{0}="VIC","+613",$BW{0}="TAS","+613",$BW{0}="QLD","+617",$BW{0}="WA","+618",$BW{0}="SA","+618",$BW{0}="NT","+618"),AU{0}),IF(AND(AV{0}=11,LEFT(AU{0},2)="61"),CONCATENATE("+",AU{0}),IF(LEFT(AU{0},3)="+64",AU{0},IF(OR(AV{0}=9,AV{0}=10),CONCATENATE("+61",AU{0})))))))'.format(str(idx+2))
                 # breakpoint()
@@ -621,115 +665,139 @@ def parse(fileoutput):
                 # breakpoint()
             # breakpoint()
             # row += 1
-            sheet.cell(row=idx+2, column=1).value = "RTO"
-            sheet.cell(row=idx+2, column=2).value = code
-            sheet.cell(row=idx+2, column=3).value = f"https://training.gov.au/Organisation/Details/{orgcode}"
-            sheet.cell(row=idx+2, column=4).value = legal_name
-            sheet.cell(row=idx+2, column=5).value = bname
-            sheet.cell(row=idx+2, column=6).value =  status
-            sheet.cell(row=idx+2, column=7).value =  abn
-            sheet.cell(row=idx+2, column=8).value = 	acn
-            sheet.cell(row=idx+2, column=9).value =  rtype
-            sheet.cell(row=idx+2, column=10).value =  website
-            sheet.cell(row=idx+2, column=11).value =  regulator
-            sheet.cell(row=idx+2, column=12).value =  regdate
-            sheet.cell(row=idx+2, column=13).value =  regstart
-            sheet.cell(row=idx+2, column=14).value =  regend
-            sheet.cell(row=idx+2, column=15).value =  authority
-            sheet.cell(row=idx+2, column=16).value =  excerciser
-            sheet.cell(row=idx+2, column=17).value =   qual_codestr
-            sheet.cell(row=idx+2, column=18).value =  qual_titlestr
-            sheet.cell(row=idx+2, column=19).value =  unit_codestr
-            sheet.cell(row=idx+2, column=20).value =  unit_titlestr
-            sheet.cell(row=idx+2, column=21).value =  skill_codestr
-            sheet.cell(row=idx+2, column=22).value = skill_titlestr
-            sheet.cell(row=idx+2, column=23).value =  course_codestr
-            sheet.cell(row=idx+2, column=24).value =  course_titlestr
-            sheet.cell(row=idx+2, column=25).value =  head_ph1
-            sheet.cell(row=idx+2, column=26).value =  head_ph2
-            sheet.cell(row=idx+2, column=27).value =  head_pos1
-            sheet.cell(row=idx+2, column=28).value =  head_pos2
-            sheet.cell(row=idx+2, column=29).value =  ", ".join(regdec)
-            sheet.cell(row=idx+2, column=30).value =  ", ".join(regefdate)
-            sheet.cell(row=idx+2, column=31).value =  ", ".join(regendate)
-            sheet.cell(row=idx+2, column=32).value =  ", ".join(regstat)
-            sheet.cell(row=idx+2, column=33).value =  ", ".join(regrev)
-            sheet.cell(row=idx+2, column=34).value =  contact_name
-            sheet.cell(row=idx+2, column=35).value =  contact_job
-            sheet.cell(row=idx+2, column=36).value =  contact_email
-            sheet.cell(row=idx+2, column=37).value =  ""
-            sheet.cell(row=idx+2, column=38).value =  contact_org
-            sheet.cell(row=idx+2, column=39).value =  f"{contact_email} + {contact_org}"
-            sheet.cell(row=idx+2, column=40).value =  contact_website
-            sheet.cell(row=idx+2, column=41).value =  contact_email_no_add
-            sheet.cell(row=idx+2, column=42).value =  contact_website_simp
-            sheet.cell(row=idx+2, column=43).value =  contact_org
-            sheet.cell(row=idx+2, column=44).value =  contact_email
-            sheet.cell(row=idx+2, column=45).value =  ""
-            sheet.cell(row=idx+2, column=46).value =  f"{contact_email} | "
-            sheet.cell(row=idx+2, column=47).value =  contact_phone
-            sheet.cell(row=idx+2, column=48).value =  f'=LEN(AU{idx+2})'
-            sheet.cell(row=idx+2, column=49).value =  contact_phone_w_ccode
-            sheet.cell(row=idx+2, column=50).value =  f'=LEN(AW{idx+2})'
-            sheet.cell(row=idx+2, column=51).value =  f'=AW{idx+2}'
-            sheet.cell(row=idx+2, column=52).value =  contact_fax
-            sheet.cell(row=idx+2, column=53).value =  f'=LEN(AZ{idx+2})'
-            sheet.cell(row=idx+2, column=54).value =  contact_fax_w_ccode
-            sheet.cell(row=idx+2, column=55).value =  f'=LEN(BB{idx+2})'
-            sheet.cell(row=idx+2, column=56).value =  f'=BB{idx+2}'
-            sheet.cell(row=idx+2, column=57).value =  contact_mobile
-            sheet.cell(row=idx+2, column=58).value =  contact_mobile_clean
-            sheet.cell(row=idx+2, column=59).value =  f'=LEN(BF{idx+2})'
-            sheet.cell(row=idx+2, column=60).value =  contact_mobile_w_ccode
-            sheet.cell(row=idx+2, column=61).value =  f'=LEN(BH{idx+2})'
-            sheet.cell(row=idx+2, column=62).value =  f'=BH{idx+2}'
-            sheet.cell(row=idx+2, column=63).value =  firstname
-            sheet.cell(row=idx+2, column=64).value =  lastname
-            sheet.cell(row=idx+2, column=65).value =  addressraw
-            sheet.cell(row=idx+2, column=66).value =  addressraw_fr
-            sheet.cell(row=idx+2, column=67).value =  addressraw1r
-            sheet.cell(row=idx+2, column=68).value =  addressraw2r
-            sheet.cell(row=idx+2, column=69).value =  addressraw3r
-            sheet.cell(row=idx+2, column=70).value =  address1
-            sheet.cell(row=idx+2, column=71).value =  postalcode
-            sheet.cell(row=idx+2, column=72).value =  state
-            sheet.cell(row=idx+2, column=73).value =  city
-            sheet.cell(row=idx+2, column=74).value =  postalcode
-            sheet.cell(row=idx+2, column=75).value =  state
-            sheet.cell(row=idx+2, column=76).value =  address1
-            sheet.cell(row=idx+2, column=77).value =  address1
-            sheet.cell(row=idx+2, column=78).value =  headrawph
-            sheet.cell(row=idx+2, column=79).value =  headrawph_fr
-            sheet.cell(row=idx+2, column=80).value =  headrawphl1r
-            sheet.cell(row=idx+2, column=81).value =  headrawphl2r
-            sheet.cell(row=idx+2, column=82).value =  headrawphl3r
-            sheet.cell(row=idx+2, column=83).value = '=IF(CB{0}="","",IF(CD{0}<>"",CONCATENATE(CB{0}," ",CC{0}),CB{0}))'.format(idx+2)
-            sheet.cell(row=idx+2, column=84).value = '=IF(CC{0}="","",IF(CD{0}<>"",CD{0},CC{0}))'.format(idx+2)
-            sheet.cell(row=idx+2, column=85).value =  headrawpos
-            sheet.cell(row=idx+2, column=86).value =  headrawpos_fr
-            sheet.cell(row=idx+2, column=87).value =  headrawposl1r
-            sheet.cell(row=idx+2, column=88).value =  headrawposl2r
-            sheet.cell(row=idx+2, column=89).value =  headrawposl3r
-            sheet.cell(row=idx+2, column=90).value = '=IF(CI{0}="","",IF(CK{0}<>"",CONCATENATE(CI{0}," ",CJ{0}),CI{0}))'.format(idx+2)
-            sheet.cell(row=idx+2, column=91).value = '=IF(CJ{0}="","",IF(CK{0}<>"",CK{0},CJ{0}))'.format(idx+2)
-    # breakpoint()
-        except ProxyError as e:
-            # if session.proxies.get("http") == "":
-            #     print("proxy added")
-            #     session.proxies.update(xproxies)
-            # else:
-            #     print("proxy removed")
-            #     session.proxies.clear()
-            # continue
-            print("Error Proxy:", str(e))
+            with save_lock:
+                sheet.cell(row=idx+2, column=1).value = "RTO"
+                sheet.cell(row=idx+2, column=2).value = code
+                sheet.cell(row=idx+2, column=3).value = f"https://training.gov.au/Organisation/Details/{orgcode}"
+                sheet.cell(row=idx+2, column=4).value = legal_name
+                sheet.cell(row=idx+2, column=5).value = bname
+                sheet.cell(row=idx+2, column=6).value =  status
+                sheet.cell(row=idx+2, column=7).value =  abn
+                sheet.cell(row=idx+2, column=8).value =     acn
+                sheet.cell(row=idx+2, column=9).value =  rtype
+                sheet.cell(row=idx+2, column=10).value =  website
+                sheet.cell(row=idx+2, column=11).value =  regulator
+                sheet.cell(row=idx+2, column=12).value =  regdate
+                sheet.cell(row=idx+2, column=13).value =  regstart
+                sheet.cell(row=idx+2, column=14).value =  regend
+                sheet.cell(row=idx+2, column=15).value =  authority
+                sheet.cell(row=idx+2, column=16).value =  excerciser
+                sheet.cell(row=idx+2, column=17).value =   qual_codestr
+                sheet.cell(row=idx+2, column=18).value =  qual_titlestr
+                sheet.cell(row=idx+2, column=19).value =  unit_codestr
+                sheet.cell(row=idx+2, column=20).value =  unit_titlestr
+                sheet.cell(row=idx+2, column=21).value =  skill_codestr
+                sheet.cell(row=idx+2, column=22).value = skill_titlestr
+                sheet.cell(row=idx+2, column=23).value =  course_codestr
+                sheet.cell(row=idx+2, column=24).value =  course_titlestr
+                sheet.cell(row=idx+2, column=25).value =  head_ph1
+                sheet.cell(row=idx+2, column=26).value =  head_ph2
+                sheet.cell(row=idx+2, column=27).value =  head_pos1
+                sheet.cell(row=idx+2, column=28).value =  head_pos2
+                sheet.cell(row=idx+2, column=29).value =  ", ".join(regdec)
+                sheet.cell(row=idx+2, column=30).value =  ", ".join(regefdate)
+                sheet.cell(row=idx+2, column=31).value =  ", ".join(regendate)
+                sheet.cell(row=idx+2, column=32).value =  ", ".join(regstat)
+                sheet.cell(row=idx+2, column=33).value =  ", ".join(regrev)
+                sheet.cell(row=idx+2, column=34).value =  contact_name
+                sheet.cell(row=idx+2, column=35).value =  contact_job
+                sheet.cell(row=idx+2, column=36).value =  contact_email
+                sheet.cell(row=idx+2, column=37).value =  ""
+                sheet.cell(row=idx+2, column=38).value =  contact_org
+                sheet.cell(row=idx+2, column=39).value =  f"{contact_email} + {contact_org}"
+                sheet.cell(row=idx+2, column=40).value =  contact_website
+                sheet.cell(row=idx+2, column=41).value =  contact_email_no_add
+                sheet.cell(row=idx+2, column=42).value =  contact_website_simp
+                sheet.cell(row=idx+2, column=43).value =  contact_org
+                sheet.cell(row=idx+2, column=44).value =  contact_email
+                sheet.cell(row=idx+2, column=45).value =  ""
+                sheet.cell(row=idx+2, column=46).value =  f"{contact_email} | "
+                sheet.cell(row=idx+2, column=47).value =  contact_phone
+                sheet.cell(row=idx+2, column=48).value =  f'=LEN(AU{idx+2})'
+                sheet.cell(row=idx+2, column=49).value =  contact_phone_w_ccode
+                sheet.cell(row=idx+2, column=50).value =  f'=LEN(AW{idx+2})'
+                sheet.cell(row=idx+2, column=51).value =  f'=AW{idx+2}'
+                sheet.cell(row=idx+2, column=52).value =  contact_fax
+                sheet.cell(row=idx+2, column=53).value =  f'=LEN(AZ{idx+2})'
+                sheet.cell(row=idx+2, column=54).value =  contact_fax_w_ccode
+                sheet.cell(row=idx+2, column=55).value =  f'=LEN(BB{idx+2})'
+                sheet.cell(row=idx+2, column=56).value =  f'=BB{idx+2}'
+                sheet.cell(row=idx+2, column=57).value =  contact_mobile
+                sheet.cell(row=idx+2, column=58).value =  contact_mobile_clean
+                sheet.cell(row=idx+2, column=59).value =  f'=LEN(BF{idx+2})'
+                sheet.cell(row=idx+2, column=60).value =  contact_mobile_w_ccode
+                sheet.cell(row=idx+2, column=61).value =  f'=LEN(BH{idx+2})'
+                sheet.cell(row=idx+2, column=62).value =  f'=BH{idx+2}'
+                sheet.cell(row=idx+2, column=63).value =  firstname
+                sheet.cell(row=idx+2, column=64).value =  lastname
+                sheet.cell(row=idx+2, column=65).value =  addressraw
+                sheet.cell(row=idx+2, column=66).value =  addressraw_fr
+                sheet.cell(row=idx+2, column=67).value =  addressraw1r
+                sheet.cell(row=idx+2, column=68).value =  addressraw2r
+                sheet.cell(row=idx+2, column=69).value =  addressraw3r
+                sheet.cell(row=idx+2, column=70).value =  address1
+                sheet.cell(row=idx+2, column=71).value =  postalcode
+                sheet.cell(row=idx+2, column=72).value =  state
+                sheet.cell(row=idx+2, column=73).value =  city
+                sheet.cell(row=idx+2, column=74).value =  postalcode
+                sheet.cell(row=idx+2, column=75).value =  state
+                sheet.cell(row=idx+2, column=76).value =  address1
+                sheet.cell(row=idx+2, column=77).value =  address1
+                sheet.cell(row=idx+2, column=78).value =  headrawph
+                sheet.cell(row=idx+2, column=79).value =  headrawph_fr
+                sheet.cell(row=idx+2, column=80).value =  headrawphl1r
+                sheet.cell(row=idx+2, column=81).value =  headrawphl2r
+                sheet.cell(row=idx+2, column=82).value =  headrawphl3r
+                sheet.cell(row=idx+2, column=83).value = '=IF(CB{0}="","",IF(CD{0}<>"",CONCATENATE(CB{0}," ",CC{0}),CB{0}))'.format(idx+2)
+                sheet.cell(row=idx+2, column=84).value = '=IF(CC{0}="","",IF(CD{0}<>"",CD{0},CC{0}))'.format(idx+2)
+                sheet.cell(row=idx+2, column=85).value =  headrawpos
+                sheet.cell(row=idx+2, column=86).value =  headrawpos_fr
+                sheet.cell(row=idx+2, column=87).value =  headrawposl1r
+                sheet.cell(row=idx+2, column=88).value =  headrawposl2r
+                sheet.cell(row=idx+2, column=89).value =  headrawposl3r
+                sheet.cell(row=idx+2, column=90).value = '=IF(CI{0}="","",IF(CK{0}<>"",CONCATENATE(CI{0}," ",CJ{0}),CI{0}))'.format(idx+2)
+                sheet.cell(row=idx+2, column=91).value = '=IF(CJ{0}="","",IF(CK{0}<>"",CK{0},CJ{0}))'.format(idx+2)
+      
+            print(f"Finished processing RTO {data[1]} at index {idx}.")  # Log end of processing
+
+        except requests.Timeout:
+            print(f"Request timed out for RTO code: {orgcode}")
         except Exception as e:
-            print("Error App:", str(e))
+            print(f"Error processing RTO code {orgcode}: {e}")
 
-    wb.save(s.RESFOLDER + os.path.sep + fileoutput)
+    # Define a save interval
+    save_interval = 100  # Adjust this value as needed
 
+    # Thread pool to handle multiple RTOs concurrently
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(fetch_rto_details, data, idx, sheet) for idx, data in enumerate(orgidlist)]
+        
+        for i, future in enumerate(as_completed(futures)):
+            try:
+                future.result()  # Ensure the task has completed without errors
+            except Exception as e:
+                print(f"Error in thread: {e}")
+            
+            # Save the workbook periodically
+            if (i + 1) % save_interval == 0:
+                with save_lock:
+                    wb.save(s.RESFOLDER + os.path.sep + fileoutput)
+                    print(f"Workbook saved after processing {i + 1} RTOs.")
+
+    # Final save after all threads are completed
+    with save_lock:
+        # Ensure the directory exists before saving the file
+        output_dir = os.path.dirname(s.RESFOLDER + os.path.sep + fileoutput)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        wb.save(s.RESFOLDER + os.path.sep + fileoutput)
+        print(f"Final workbook saved after completing all RTO processing.")
+
+        
 def main():
     parser = argparse.ArgumentParser(description="RTO Scraper")
-    parser.add_argument('-o', '--output', type=str,help="File Input")
+    parser.add_argument('-o', '--output', type=str, help="File Input")
     args = parser.parse_args()
     if not args.output:
         print('use: python rtoscraper.py -o <filename>')
@@ -738,8 +806,9 @@ def main():
     if args.output[-5:] != '.xlsx':
         print('File output have to XLSX file')
         exit()
-    
+
     parse(fileoutput=args.output)
+
     
 if __name__ == '__main__':
     main()
