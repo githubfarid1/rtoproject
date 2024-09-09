@@ -9,6 +9,8 @@ import setting as s
 from requests import Session
 from requests.exceptions import ProxyError
 from itertools import groupby
+from prettytable import PrettyTable
+
 '''
 json.loads : untuk mengubah STRING JSON menjadi OBJECT DICTIONARY
 
@@ -49,14 +51,24 @@ headers = {
 }
 
 def parse(fileoutput, proxy, count):
-    # breakpoint()
     session = Session()
     if proxy != '':
         session.proxies.update({
             "http": proxy,
             "https": proxy
         })
-        print("proxy: ", proxy)
+        # print("proxy: ", proxy)
+    if count == 0:
+        strcount = '~'
+    else:
+        strcount = str(count)
+    myTable = PrettyTable(["KEY","VALUE"])
+    myTable.align ="l"
+    myTable.add_row(["FILE OUTPUT: ", fileoutput])
+    myTable.add_row(["PROXY: ", proxy])
+    myTable.add_row(["COUNT: ", strcount])
+    print(myTable)
+
     orgidlist = []
     for page in range(1, 100):
         params = {
@@ -797,7 +809,7 @@ def parse(fileoutput, proxy, count):
 
         idx += 1
         if count != 0:
-            if idxorg >= count:
+            if idxorg >= count-1:
                 break
 
     wb.save(s.RESFOLDER + os.path.sep + fileoutput)
